@@ -19,7 +19,7 @@ class CoinManager {
     this.totalFrames = 6;
     this.currentFrame = 0;
     this.frameTimer = 0;
-    this.animationSpeed = 4; // A cada 4 frames, muda o quadro
+    this.animationSpeed = 8; // A cada 8 frames, muda o quadro
     
     this.coinWidth = 28;
     this.coinHeight = 28;
