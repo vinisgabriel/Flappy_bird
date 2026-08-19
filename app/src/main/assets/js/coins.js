@@ -24,12 +24,23 @@ class CoinManager {
     this.coinWidth = 28;
     this.coinHeight = 28;
     this.coinSpacing = 180;
+
+    // ============================================
+    // FLASH PARA QUANDO COLETA A MOEDA
+    // ============================================
+    this.flashImage = new Image();
+    this.flashImage.src = 'Assets/flashlight.png';
+    
+    this.flashTimer = 0;           // Contador regressivo
+    this.flashDuration = 9;        // 9 frames = ~150ms (60 FPS)
+    this.flashPos = { x: 0, y: 0 };
   }
 
   reset() {
     this.coins = [];
     this.currentFrame = 0;
     this.frameTimer = 0;
+    this.flashTimer = 0;           // Reset do flash também
   }
 
   spawnCoinsPattern() {
@@ -69,6 +80,13 @@ class CoinManager {
       this.currentFrame = (this.currentFrame + 1) % this.totalFrames;
     }
 
+    // ============================================
+    // ATUALIZA O TIMER DO FLASH
+    // ============================================
+    if (this.flashTimer > 0) {
+      this.flashTimer--;
+    }
+
     for (let i = this.coins.length - 1; i >= 0; i--) {
       const coin = this.coins[i];
       coin.x -= speed;
@@ -81,6 +99,14 @@ class CoinManager {
           bird.y + bird.height > coin.y
         ) {
           coin.collected = true;
+
+          // ============================================
+          // ATIVA O FLASH NA POSIÇÃO DA MOEDA
+          // ============================================
+          this.flashTimer = this.flashDuration;
+          this.flashPos.x = coin.x;
+          this.flashPos.y = coin.y;
+
           if (onCollect) onCollect(true);
         }
       }
@@ -96,11 +122,32 @@ class CoinManager {
   }
 
   draw() {
+    // ============================================
+    // DESENHA O FLASH (se estiver ativo) - 3x MAIOR
+    // ============================================
+    if (this.flashTimer > 0 && this.flashImage.complete && this.flashImage.naturalWidth !== 0) {
+      const alpha = this.flashTimer / this.flashDuration;
+      
+      // Tamanho 3x maior (84px)
+      const flashSize = this.coinWidth * 3;
+      
+      this.ctx.save();
+      this.ctx.globalAlpha = alpha;
+      this.ctx.drawImage(
+        this.flashImage,
+        this.flashPos.x - this.coinWidth,     // Centraliza (28px para esquerda)
+        this.flashPos.y - this.coinWidth,     // Centraliza (28px para cima)
+        flashSize,
+        flashSize
+      );
+      this.ctx.restore();
+    }
+
+    // ============================================
+    // DESENHA AS MOEDAS NÃO COLETADAS
+    // ============================================
     for (const coin of this.coins) {
       if (!coin.collected) {
-        // ============================================
-        // DESENHA O FRAME ATUAL DA MOEDA
-        // ============================================
         const currentSprite = this.frames[this.currentFrame];
         
         if (currentSprite && currentSprite.complete && currentSprite.naturalWidth !== 0) {

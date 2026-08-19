@@ -41,6 +41,15 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    // ============================================
+    // NOVO: RENOMEIA O APK PARA "Flappy Bird.apk"
+    // ============================================
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            output.outputFileName = "Flappy Bird.apk"
+        }
+    }
 }
 
 dependencies {
