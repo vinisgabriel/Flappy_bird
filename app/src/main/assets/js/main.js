@@ -1412,6 +1412,57 @@ function draw() {
   }
 }
 
+// ============================================
+// CAPTURA O BOTÃO "VOLTAR" DO ANDROID
+// ============================================
+document.addEventListener('backbutton', function(e) {
+    // Impede o comportamento padrão (sair do app)
+    e.preventDefault();
+    
+    // Se a splash screen estiver ativa, não faz nada
+    if (splashActive) return;
+    
+    // Se o menu de configurações estiver aberto, fecha ele
+    if (configMenuOpen) {
+        configMenuOpen = false;
+        return;
+    }
+    
+    // Verifica em qual tela o jogador está
+    if (gameState === 'GAMEOVER') {
+        // Volta para o MENU
+        playSound(sounds.swooshing);
+        resetToMenu();
+    } 
+    else if (gameState === 'SCORES') {
+        // Volta para o GAMEOVER
+        playSound(sounds.swooshing);
+        gameState = 'GAMEOVER';
+    }
+    else if (gameState === 'MENU') {
+        // Se estiver no MENU, deixa o comportamento padrão (sair do app)
+        // Não faz nada, o Android vai sair naturalmente
+        return;
+    }
+    else if (gameState === 'PLAYING' || 
+             gameState === 'HIT' || 
+             gameState === 'SECRET_WAITING' || 
+             gameState === 'SECRET_PLAYING' ||
+             gameState === 'RETURN_WAITING' ||
+             gameState === 'ENTERING_SECRET' ||
+             gameState === 'RETURNING_FROM_SECRET' ||
+             gameState === 'ENTERING_PIPE') {
+        // Se estiver jogando, volta para o MENU
+        playSound(sounds.swooshing);
+        resetToMenu();
+    }
+    else {
+        // Qualquer outro estado, volta para o MENU
+        playSound(sounds.swooshing);
+        resetToMenu();
+    }
+});
+
 function gameLoop() {
   if (!isGameRunning) return;
   update();
