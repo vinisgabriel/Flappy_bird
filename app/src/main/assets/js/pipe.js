@@ -10,9 +10,30 @@ class PipeManager {
     this.pipeGap = 100;
     this.speed = 2;
     this.spawnTimer = 0;
-    this.spawnInterval = 169; // AUMENTADO EM 30% (130 + 39)
+    this.spawnInterval = 169;
     this.pipeCounter = 0;
     this.paused = false;
+
+    // ============================================
+    // SISTEMA DA ESTRELA
+    // ============================================
+    this._star = null;
+    this.starSprites = [];
+    this.starCollected = false;
+  }
+
+  // ============================================
+  // CARREGA OS SPRITES DA ESTRELA
+  // ============================================
+  setStarSprites(sprite1, sprite2) {
+    this.starSprites = [sprite1, sprite2];
+  }
+
+  // ============================================
+  // GETTER PARA ACESSAR A ESTRELA
+  // ============================================
+  get star() {
+    return this._star;
   }
 
   reset() {
@@ -20,6 +41,8 @@ class PipeManager {
     this.spawnTimer = 0;
     this.pipeCounter = 0;
     this.paused = false;
+    this._star = null;
+    this.starCollected = false;
   }
 
   setPaused(paused) {
@@ -32,21 +55,39 @@ class PipeManager {
     const topHeight = 120;
     const bottomY = topHeight + this.pipeGap;
 
-    this.pipes.push({
+    const pipe = {
       x: xPos,
       topHeight: topHeight,
       bottomY: bottomY,
       width: this.pipeWidth,
       passed: true,
-      isSecret: true
-    });
+      isSecret: true,
+      hasStar: true
+    };
+
+    this.pipes.push(pipe);
+
+    if (this.starSprites.length === 2) {
+      const starSize = 32;
+      const gapCenterY = topHeight + (this.pipeGap / 2);
+      
+      this._star = {
+        x: xPos + (this.pipeWidth / 2) - (starSize / 2),
+        y: gapCenterY - (starSize / 2),
+        size: starSize,
+        collected: false,
+        frame: 0,
+        frameTimer: 0,
+        frameInterval: 30
+      };
+      this.starCollected = false;
+    }
   }
 
   update(bird, onScore) {
     if (!this.paused) {
       this.spawnTimer++;
       
-      // Intervalo FIXO - define a distância entre pares de canos
       if (this.spawnTimer >= this.spawnInterval) {
         this.spawnTimer = 0;
         this.pipeCounter++;
@@ -64,21 +105,51 @@ class PipeManager {
           bottomY: bottomY,
           width: this.pipeWidth,
           passed: false,
-          isSecret: isSecret
+          isSecret: isSecret,
+          hasStar: false
         });
       }
     }
 
-    // Move os canos
+    if (this._star && !this._star.collected) {
+      this._star.frameTimer++;
+      if (this._star.frameTimer >= this._star.frameInterval) {
+        this._star.frameTimer = 0;
+        this._star.frame = (this._star.frame + 1) % 2;
+      }
+    }
+
     for (let i = 0; i < this.pipes.length; i++) {
       const p = this.pipes[i];
       p.x -= this.speed;
+
+      if (this._star && !this._star.collected && p.hasStar) {
+        this._star.x = p.x + (this.pipeWidth / 2) - (this._star.size / 2);
+        const gapCenterY = p.topHeight + (this.pipeGap / 2);
+        this._star.y = gapCenterY - (this._star.size / 2) + Math.sin(Date.now() / 500) * 5;
+      }
 
       if (!p.passed && bird.x > p.x + p.width) {
         p.passed = true;
         if (onScore) {
           onScore(0.5);
           onScore(0.5);
+        }
+      }
+    }
+
+    if (this._star && !this._star.collected) {
+      const s = this._star;
+      if (bird.x < s.x + s.size &&
+          bird.x + bird.width > s.x &&
+          bird.y < s.y + s.size &&
+          bird.y + bird.height > s.y) {
+        
+        this._star.collected = true;
+        this.starCollected = true;
+        
+        if (onScore) {
+          onScore(20);
         }
       }
     }
@@ -144,6 +215,40 @@ class PipeManager {
         this.ctx.fillStyle = '#73bf2e';
         this.ctx.fillRect(p.x, p.bottomY, p.width, bottomHeight);
       }
+
+      if (this._star && !this._star.collected && p.hasStar) {
+        const s = this._star;
+        const currentSprite = this.starSprites[s.frame];
+        
+        if (currentSprite && currentSprite.complete && currentSprite.naturalWidth !== 0) {
+          this.ctx.save();
+          this.ctx.shadowColor = '#FFD700';
+          this.ctx.shadowBlur = 20;
+          this.ctx.drawImage(
+            currentSprite,
+            s.x,
+            s.y,
+            s.size,
+            s.size
+          );
+          this.ctx.restore();
+        } else {
+          this.ctx.fillStyle = '#FFD700';
+          this.ctx.font = '30px Arial';
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillText('⭐', s.x + s.size/2, s.y + s.size/2);
+        }
+      }
     });
+  }
+
+  isStarCollected() {
+    return this.starCollected;
+  }
+
+  resetStar() {
+    this._star = null;
+    this.starCollected = false;
   }
 }

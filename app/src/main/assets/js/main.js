@@ -10,57 +10,42 @@ canvas.height = 640;
 // ============================================
 let splashActive = true;
 let splashTimer = 0;
-const SPLASH_DURATION = 120; // 2 segundos (60 FPS * 2)
+const SPLASH_DURATION = 120;
 let splashImage = null;
 
 // Gerenciador de Assets (Imagens)
 const assets = {};
 const assetSources = {
-  // ============================================
-  // SPLASH SCREEN
-  // ============================================
   tumb: 'Assets/tumb.jpg',
-
   message: 'Assets/message.png',
   bgDay: 'Assets/background-day.png',
   bgNight: 'Assets/background-night.png',
   base: 'Assets/base.png',
-
-  // ============================================
-  // 6 FRAMES DA MOEDA
-  // ============================================
   frame0: 'Assets/frame_0.png',
   frame1: 'Assets/frame_1.png',
   frame2: 'Assets/frame_2.png',
   frame3: 'Assets/frame_3.png',
   frame4: 'Assets/frame_4.png',
   frame5: 'Assets/frame_5.png',
-
   pipe: 'Assets/pipe-green.png',
   pipeRev: 'Assets/pipe-green -reverse.png',
-
   yellowUp: 'Assets/yellowbird-upflap.png',
   yellowMid: 'Assets/yellowbird-midflap.png',
   yellowDown: 'Assets/yellowbird-downflap.png',
-
   blueUp: 'Assets/bluebird-upflap.png',
   blueMid: 'Assets/bluebird-midflap.png',
   blueDown: 'Assets/bluebird-downflap.png',
-
   redUp: 'Assets/redbird-upflap.png',
   redMid: 'Assets/redbird-midflap.png',
   redDown: 'Assets/redbird-downflap.png',
-
   gameOver: 'Assets/gameover.png',
   placar: 'Assets/placar.jpg',
   btnPlay: 'Assets/play.jpg',
   btnScorecard: 'Assets/scorecard.jpg',
-
   medalBronze: 'Assets/Bronze.png',
   medalPrata: 'Assets/Prata.png',
   medalOuro: 'Assets/ouro.png',
   medalPlatina: 'Assets/Platina.png',
-
   num0: 'Assets/number_0.png',
   num1: 'Assets/number_1.png',
   num2: 'Assets/number_2.png',
@@ -70,7 +55,9 @@ const assetSources = {
   num6: 'Assets/number_6.png',
   num7: 'Assets/number_7.png',
   num8: 'Assets/number_8.png',
-  num9: 'Assets/number_9.png'
+  num9: 'Assets/number_9.png',
+  star1: 'Assets/estrela.png',
+  star2: 'Assets/estrela (1).png'
 };
 
 // Gerenciador de Sons
@@ -174,7 +161,15 @@ let pipeResumeDelay = 0;
 const PIPE_RESUME_DELAY_FRAMES = 120;
 
 // ============================================
-// CONFIGURAÇÕES DO JOGO - NOVOS PADRÕES
+// SISTEMA DE PONTUAÇÃO DA ESTRELA (PÓS-RETORNO)
+// ============================================
+let starScorePending = 0;
+let starScoreTimer = 0;
+const STAR_SCORE_INTERVAL = 3;
+let starScoreActive = false;
+
+// ============================================
+// CONFIGURAÇÕES DO JOGO
 // ============================================
 const DEFAULT_CONFIG = {
     gravity: 0.12,
@@ -234,8 +229,6 @@ function applyConfig() {
     }
 }
 
-// ============================================
-
 const btnWidth = 100;
 const btnHeight = 58;
 const boardY = 180;
@@ -261,15 +254,11 @@ const messageHeight = 267;
 const messageX = (canvas.width - messageWidth) / 2;
 const messageY = (canvas.height - messageHeight) / 2 - 30;
 
-// Posição do botão de engrenagem
 let configGearRect = { x: 0, y: 0, w: 30, h: 30 };
 
 function checkAllLoaded() {
   loadedCount++;
   if (loadedCount === totalAssets) {
-    // ============================================
-    // CARREGA A IMAGEM DA SPLASH SCREEN
-    // ============================================
     splashImage = assets.tumb;
     initGame();
   }
@@ -293,6 +282,8 @@ function initGame() {
 
   bird = new Bird(canvas, ctx);
   pipeManager = new PipeManager(canvas, ctx, assets.pipe, assets.pipeRev);
+  pipeManager.setStarSprites(assets.star1, assets.star2);
+  
   coinManager = new CoinManager(canvas, ctx, assets);
   irisTransition = new IrisTransition(canvas, ctx);
 
@@ -328,6 +319,14 @@ function resetToMenu() {
   returnPipeRemoved = false;
   pipeResumeDelay = 0;
 
+  starScorePending = 0;
+  starScoreTimer = 0;
+  starScoreActive = false;
+
+  if (pipeManager) {
+    pipeManager.resetStar();
+  }
+
   bird.x = canvas.width / 2 - bird.width / 2;
   bird.baseMenuY = messageY + 168;
   bird.y = bird.baseMenuY;
@@ -360,7 +359,6 @@ function handleConfigClick(x, y) {
     const panelX = (canvas.width - panelW) / 2;
     const panelY = (canvas.height - panelH) / 2 - 10;
     
-    // Botão Fechar
     const btnX = (canvas.width - 120) / 2;
     const btnY = panelY + panelH - 45;
     if (x >= btnX && x <= btnX + 120 && y >= btnY && y <= btnY + 35) {
@@ -375,7 +373,6 @@ function handleConfigClick(x, y) {
     const resetX = panelX + panelW - 35;
     const resetBtnSize = 24;
     
-    // Reset Gravidade
     if (x >= resetX && x <= resetX + resetBtnSize && y >= startY - 5 && y <= startY + 25) {
         gameConfig.gravity = DEFAULT_CONFIG.gravity;
         applyConfig();
@@ -383,7 +380,6 @@ function handleConfigClick(x, y) {
         return true;
     }
     
-    // Reset Velocidade
     if (x >= resetX && x <= resetX + resetBtnSize && y >= startY + lineHeight - 5 && y <= startY + lineHeight + 25) {
         gameConfig.speed = DEFAULT_CONFIG.speed;
         applyConfig();
@@ -391,7 +387,6 @@ function handleConfigClick(x, y) {
         return true;
     }
     
-    // Reset Força do Pulo
     if (x >= resetX && x <= resetX + resetBtnSize && y >= startY + lineHeight * 2 - 5 && y <= startY + lineHeight * 2 + 25) {
         gameConfig.jumpForce = DEFAULT_CONFIG.jumpForce;
         applyConfig();
@@ -399,7 +394,6 @@ function handleConfigClick(x, y) {
         return true;
     }
     
-    // Reset Velocidade da Íris
     if (x >= resetX && x <= resetX + resetBtnSize && y >= startY + lineHeight * 3 - 5 && y <= startY + lineHeight * 3 + 25) {
         gameConfig.irisSpeed = DEFAULT_CONFIG.irisSpeed;
         applyConfig();
@@ -407,7 +401,6 @@ function handleConfigClick(x, y) {
         return true;
     }
     
-    // Slider Gravidade (0.01 a 0.80)
     if (y >= startY + 12 && y <= startY + 28) {
         const percent = Math.max(0, Math.min(1, (x - sliderX) / sliderWidth));
         gameConfig.gravity = Math.round((0.01 + percent * 0.79) * 100) / 100;
@@ -416,7 +409,6 @@ function handleConfigClick(x, y) {
         return true;
     }
     
-    // Slider Velocidade (0.3 a 5.0)
     if (y >= startY + lineHeight + 12 && y <= startY + lineHeight + 28) {
         const percent = Math.max(0, Math.min(1, (x - sliderX) / sliderWidth));
         gameConfig.speed = Math.round((0.3 + percent * 4.7) * 10) / 10;
@@ -425,7 +417,6 @@ function handleConfigClick(x, y) {
         return true;
     }
     
-    // Slider Força do Pulo (2.0 a 8.0)
     if (y >= startY + lineHeight * 2 + 12 && y <= startY + lineHeight * 2 + 28) {
         const percent = Math.max(0, Math.min(1, (x - sliderX) / sliderWidth));
         gameConfig.jumpForce = -(Math.round((2.0 + percent * 6.0) * 10) / 10);
@@ -434,7 +425,6 @@ function handleConfigClick(x, y) {
         return true;
     }
     
-    // Slider Velocidade da Íris (1 a 10)
     if (y >= startY + lineHeight * 3 + 12 && y <= startY + lineHeight * 3 + 28) {
         const percent = Math.max(0, Math.min(1, (x - sliderX) / sliderWidth));
         gameConfig.irisSpeed = Math.round(1 + percent * 9);
@@ -449,11 +439,9 @@ function handleConfigClick(x, y) {
 function drawConfigMenu() {
     if (!configMenuOpen) return;
     
-    // Fundo escuro semi-transparente
     ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Painel
     const panelW = 290;
     const panelH = 420;
     const panelX = (canvas.width - panelW) / 2;
@@ -465,14 +453,12 @@ function drawConfigMenu() {
     ctx.fillRect(panelX, panelY, panelW, panelH);
     ctx.strokeRect(panelX, panelY, panelW, panelH);
     
-    // Título
     ctx.fillStyle = '#543847';
     ctx.font = 'bold 18px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText('⚙️ CONFIGURAÇÕES', canvas.width / 2, panelY + 15);
     
-    // Linha separadora
     ctx.beginPath();
     ctx.moveTo(panelX + 20, panelY + 45);
     ctx.lineTo(panelX + panelW - 20, panelY + 45);
@@ -488,101 +474,70 @@ function drawConfigMenu() {
     const resetX = panelX + panelW - 35;
     const resetBtnSize = 24;
     
-    // ============================================
-    // GRAVIDADE (0.01 a 0.80)
-    // ============================================
     const y1 = startY;
-    
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#543847';
     ctx.font = 'bold 13px Arial';
     ctx.fillText('Gravidade', labelX, y1);
-    
     ctx.textAlign = 'right';
     ctx.font = '13px Arial';
     ctx.fillStyle = '#E06010';
     ctx.fillText(gameConfig.gravity.toFixed(2), panelX + panelW - 45, y1);
-    
     drawSlider(sliderX, y1 + 18, sliderWidth, gameConfig.gravity, 0.01, 0.80);
-    
     ctx.textAlign = 'center';
     ctx.fillStyle = '#E06010';
     ctx.font = '16px Arial';
     ctx.fillText('↺', resetX + resetBtnSize/2, y1 + 2);
     
-    // ============================================
-    // VELOCIDADE (0.3 a 5.0)
-    // ============================================
     const y2 = startY + lineHeight;
-    
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#543847';
     ctx.font = 'bold 13px Arial';
     ctx.fillText('Velocidade', labelX, y2);
-    
     ctx.textAlign = 'right';
     ctx.font = '13px Arial';
     ctx.fillStyle = '#E06010';
     ctx.fillText(gameConfig.speed.toFixed(1), panelX + panelW - 45, y2);
-    
     drawSlider(sliderX, y2 + 18, sliderWidth, gameConfig.speed, 0.3, 5.0);
-    
     ctx.textAlign = 'center';
     ctx.fillStyle = '#E06010';
     ctx.font = '16px Arial';
     ctx.fillText('↺', resetX + resetBtnSize/2, y2 + 2);
     
-    // ============================================
-    // FORÇA DO PULO (2.0 a 8.0)
-    // ============================================
     const y3 = startY + lineHeight * 2;
-    
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#543847';
     ctx.font = 'bold 13px Arial';
     ctx.fillText('Força do Pulo', labelX, y3);
-    
     ctx.textAlign = 'right';
     ctx.font = '13px Arial';
     ctx.fillStyle = '#E06010';
     ctx.fillText(Math.abs(gameConfig.jumpForce).toFixed(1), panelX + panelW - 45, y3);
-    
     drawSlider(sliderX, y3 + 18, sliderWidth, Math.abs(gameConfig.jumpForce), 2.0, 8.0);
-    
     ctx.textAlign = 'center';
     ctx.fillStyle = '#E06010';
     ctx.font = '16px Arial';
     ctx.fillText('↺', resetX + resetBtnSize/2, y3 + 2);
     
-    // ============================================
-    // VELOCIDADE DA ÍRIS (1 a 10)
-    // ============================================
     const y4 = startY + lineHeight * 3;
-    
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#543847';
     ctx.font = 'bold 13px Arial';
     ctx.fillText('Velocidade da Íris', labelX, y4);
-    
     ctx.textAlign = 'right';
     ctx.font = '13px Arial';
     ctx.fillStyle = '#E06010';
     ctx.fillText(gameConfig.irisSpeed.toFixed(0), panelX + panelW - 45, y4);
-    
     drawSlider(sliderX, y4 + 18, sliderWidth, gameConfig.irisSpeed, 1, 10);
-    
     ctx.textAlign = 'center';
     ctx.fillStyle = '#E06010';
     ctx.font = '16px Arial';
     ctx.fillText('↺', resetX + resetBtnSize/2, y4 + 2);
     
-    // ============================================
-    // VALORES PADRÃO ATUALIZADOS
-    // ============================================
     const y5 = startY + lineHeight * 4 + 5;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#8C4303';
@@ -590,9 +545,6 @@ function drawConfigMenu() {
     ctx.textBaseline = 'top';
     ctx.fillText('Padrão: ' + DEFAULT_CONFIG.gravity.toFixed(2) + '  |  ' + DEFAULT_CONFIG.speed.toFixed(1) + '  |  ' + Math.abs(DEFAULT_CONFIG.jumpForce).toFixed(1) + '  |  ' + DEFAULT_CONFIG.irisSpeed.toFixed(0), canvas.width / 2, y5);
     
-    // ============================================
-    // BOTÃO FECHAR
-    // ============================================
     const btnX = (canvas.width - 120) / 2;
     const btnY = panelY + panelH - 45;
     ctx.fillStyle = '#E06010';
@@ -608,15 +560,10 @@ function drawSlider(x, y, width, value, min, max) {
     const percent = (value - min) / (max - min);
     const thumbX = x + Math.max(0, Math.min(percent, 1)) * width;
     
-    // Trilho
     ctx.fillStyle = '#c0b07a';
     ctx.fillRect(x, y, width, 8);
-    
-    // Preenchimento
     ctx.fillStyle = '#E06010';
     ctx.fillRect(x, y, thumbX - x, 8);
-    
-    // Botão
     ctx.fillStyle = '#543847';
     ctx.beginPath();
     ctx.arc(thumbX, y + 4, 10, 0, Math.PI * 2);
@@ -631,12 +578,8 @@ function handleInput(e) {
   const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
   const clickY = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-  // ============================================
-  // IGNORA CLIQUE DURANTE A SPLASH SCREEN
-  // ============================================
   if (splashActive) return;
 
-  // Se o menu de configurações estiver aberto, processa o clique nele
   if (configMenuOpen) {
     if (handleConfigClick(clickX, clickY)) {
       return;
@@ -657,6 +600,10 @@ function handleInput(e) {
     baseScrollPaused = false;
     bird.jump();
     playSound(sounds.wing);
+    
+    if (coinManager.coins.length === 0) {
+      coinManager.spawnCoinsPattern();
+    }
   }
   else if (gameState === 'SECRET_PLAYING') {
     bird.jump();
@@ -667,9 +614,13 @@ function handleInput(e) {
     baseScrollPaused = false;
     bird.jump();
     playSound(sounds.wing);
+    
+    if (starScorePending > 0) {
+        starScoreActive = true;
+        starScoreTimer = 0;
+    }
   }
   else if (gameState === 'GAMEOVER') {
-    // Botão de configurações (engrenagem no scorecard)
     if (configGearRect) {
         const g = configGearRect;
         if (clickX >= g.x && clickX <= g.x + g.w && clickY >= g.y && clickY <= g.y + g.h) {
@@ -682,7 +633,6 @@ function handleInput(e) {
       clickX >= btnPlayRect.x && clickX <= btnPlayRect.x + btnPlayRect.w &&
       clickY >= btnPlayRect.y && clickY <= btnPlayRect.y + btnPlayRect.h
     ) {
-      // Randomiza o cenário ao clicar em PLAY
       selectedBg = Math.random() < 0.5 ? assets.bgDay : assets.bgNight;
       
       pressedButton = 'PLAY';
@@ -708,7 +658,6 @@ function handleInput(e) {
     }
   } 
   else if (gameState === 'SCORES') {
-    // Verifica se clicou na engrenagem
     if (configGearRect) {
         const g = configGearRect;
         if (clickX >= g.x && clickX <= g.x + g.w && clickY >= g.y && clickY <= g.y + g.h) {
@@ -716,7 +665,6 @@ function handleInput(e) {
             return;
         }
     }
-    // Se não clicou na engrenagem, volta para o game over
     playSound(sounds.swooshing);
     gameState = 'GAMEOVER';
   }
@@ -734,7 +682,6 @@ function triggerEnterPipe(collisionData, isReturning = false) {
 
   irisTransition.startClose(centerX, centerY, () => {
     if (isReturningFromSecret) {
-      // RETORNANDO DO MODO MOEDA
       const pipeX = canvas.width / 2 - 26;
       const topHeight = 200;
       const gapSize = 100;
@@ -766,7 +713,6 @@ function triggerEnterPipe(collisionData, isReturning = false) {
       gameState = 'RETURNING_FROM_SECRET';
       baseScrollPaused = true;
       
-      // LIMPA TODOS OS CANOS NORMAIS
       pipeManager.pipes = [];
       pipeManager.setPaused(true);
       coinManager.reset();
@@ -779,7 +725,6 @@ function triggerEnterPipe(collisionData, isReturning = false) {
       playSound(sounds.enteringPipe);
       irisTransition.startOpen(canvas.width / 2, canvas.height / 2);
     } else {
-      // ENTRANDO NO MODO MOEDA
       const pipeX = canvas.width / 2 - 26;
       const topHeight = 200;
       const gapSize = 100;
@@ -827,15 +772,12 @@ function triggerEnterPipe(collisionData, isReturning = false) {
 function update() {
   const groundY = canvas.height - baseHeight;
 
-  // ============================================
-  // SPLASH SCREEN - CONTAGEM REGRESSIVA
-  // ============================================
   if (splashActive) {
     splashTimer++;
     if (splashTimer >= SPLASH_DURATION) {
       splashActive = false;
     }
-    return; // Não atualiza o jogo enquanto a splash está ativa
+    return;
   }
 
   if (irisTransition) {
@@ -854,20 +796,35 @@ function update() {
     }
     bird.updatePlaying();
     
-    // REMOVE O CANO DE RETORNO QUANDO SAI DA TELA
+    // ============================================
+    // SISTEMA DE PONTUAÇÃO DA ESTRELA (1 ponto a cada 0.05s)
+    // ============================================
+    if (starScoreActive && starScorePending > 0) {
+        starScoreTimer++;
+        if (starScoreTimer >= STAR_SCORE_INTERVAL) {
+            starScoreTimer = 0;
+            score += 1;
+            starScorePending--;
+            playSound(sounds.point);
+            
+            if (starScorePending <= 0) {
+                starScoreActive = false;
+                starScorePending = 0;
+            }
+        }
+    }
+    
     if (returnPipe) {
       returnPipe.x -= baseSpeed;
       if (returnPipe.x + returnPipe.width < -50) {
         returnPipe = null;
         returnPipeRemoved = true;
         pipeResumeDelay = 0;
-        // DEPOIS QUE O CANO DE RETORNO SAI, RESETA O pipeManager
         pipeManager.pipes = [];
         pipeManager.spawnTimer = 0;
       }
     }
     
-    // DELAY DE 2 SEGUNDOS PARA LIBERAR O pipeManager
     if (returnPipeRemoved && pipeManager.paused) {
       pipeResumeDelay++;
       if (pipeResumeDelay >= PIPE_RESUME_DELAY_FRAMES) {
@@ -876,7 +833,6 @@ function update() {
       }
     }
     
-    // Só atualiza os canos se o pipeManager não estiver pausado
     if (!pipeManager.paused) {
       pipeManager.update(bird, (ponto) => {
         score += ponto;
@@ -898,7 +854,6 @@ function update() {
       triggerGameOver();
     }
 
-    // COOLDOWN
     if (secretCooldown) {
       secretCooldownTimer++;
       if (secretCooldownTimer >= SECRET_COOLDOWN_FRAMES) {
@@ -1003,6 +958,10 @@ function update() {
           bird.rotation = 0;
           returnAnimating = false;
           
+          if (pipeManager) {
+            pipeManager.resetStar();
+          }
+          
           gameState = 'RETURN_WAITING';
           secretHoverAngle = 0;
           baseScrollPaused = true;
@@ -1048,9 +1007,31 @@ function update() {
       pipeManager.spawnSecretReturnPipe(canvas.width + 20);
     }
 
-    if (exitPipeSpawned) {
-      pipeManager.update(bird, () => {});
+    if (exitPipeSpawned && pipeManager) {
+      pipeManager.update(bird, (pontos) => {
+        if (pontos === 20) {
+          starScorePending = 20;
+          playSound(sounds.point);
+        } else {
+          score += pontos;
+        }
+      });
+    }
+
+    if (exitPipeSpawned && pipeManager.pipes.length > 0) {
       const exitPipe = pipeManager.pipes[0];
+      
+      if (pipeManager.star && !pipeManager.star.collected) {
+        const distanceToPipe = exitPipe.x - (bird.x + bird.width);
+        
+        if (distanceToPipe <= 2 && distanceToPipe > 0) {
+          pipeManager.star.collected = true;
+          pipeManager.starCollected = true;
+          starScorePending = 20;
+          playSound(sounds.point);
+        }
+      }
+      
       if (exitPipe && bird.x + bird.width >= exitPipe.x) {
         triggerEnterPipe({ type: 'SECRET_PIPE', pipe: exitPipe }, true);
       }
@@ -1240,7 +1221,6 @@ function drawScoresScreen() {
     });
   }
 
-  // Botão de configurações (engrenagem)
   const gearSize = 30;
   const gearX = panelX + panelW - gearSize - 10;
   const gearY = panelY + 5;
@@ -1302,12 +1282,9 @@ function drawPipe(p) {
 }
 
 function draw() {
-  // ============================================
-  // SPLASH SCREEN - DESENHA A IMAGEM
-  // ============================================
   if (splashActive && splashImage && splashImage.complete && splashImage.naturalWidth !== 0) {
     ctx.drawImage(splashImage, 0, 0, canvas.width, canvas.height);
-    return; // Não desenha mais nada enquanto a splash está ativa
+    return;
   }
 
   if (selectedBg) {
@@ -1402,7 +1379,6 @@ function draw() {
     drawScoresScreen();
   }
 
-  // Menu de configurações (sempre por cima de tudo)
   if (configMenuOpen) {
     drawConfigMenu();
   }
@@ -1412,36 +1388,25 @@ function draw() {
   }
 }
 
-// ============================================
-// CAPTURA O BOTÃO "VOLTAR" DO ANDROID
-// ============================================
 document.addEventListener('backbutton', function(e) {
-    // Impede o comportamento padrão (sair do app)
     e.preventDefault();
     
-    // Se a splash screen estiver ativa, não faz nada
     if (splashActive) return;
     
-    // Se o menu de configurações estiver aberto, fecha ele
     if (configMenuOpen) {
         configMenuOpen = false;
         return;
     }
     
-    // Verifica em qual tela o jogador está
     if (gameState === 'GAMEOVER') {
-        // Volta para o MENU
         playSound(sounds.swooshing);
         resetToMenu();
     } 
     else if (gameState === 'SCORES') {
-        // Volta para o GAMEOVER
         playSound(sounds.swooshing);
         gameState = 'GAMEOVER';
     }
     else if (gameState === 'MENU') {
-        // Se estiver no MENU, deixa o comportamento padrão (sair do app)
-        // Não faz nada, o Android vai sair naturalmente
         return;
     }
     else if (gameState === 'PLAYING' || 
@@ -1452,12 +1417,10 @@ document.addEventListener('backbutton', function(e) {
              gameState === 'ENTERING_SECRET' ||
              gameState === 'RETURNING_FROM_SECRET' ||
              gameState === 'ENTERING_PIPE') {
-        // Se estiver jogando, volta para o MENU
         playSound(sounds.swooshing);
         resetToMenu();
     }
     else {
-        // Qualquer outro estado, volta para o MENU
         playSound(sounds.swooshing);
         resetToMenu();
     }
